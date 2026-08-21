@@ -19,7 +19,13 @@ export class UsersService {
     return result;
   }
 
-  async updateProfile(id: number, updateData: any) {
+  async updateProfile(id: number, updateData: {
+            full_name?: string;
+            phone?: string;
+            address?: string;
+            avatar?: string;
+        },) {
+
     await this.usersRepository.update(id, updateData);
     const updatedUser = await this.usersRepository.findOne({ where: { id } });
     
@@ -30,4 +36,39 @@ export class UsersService {
     const { password, ...result } = updatedUser;
     return result;
   }
+  async updateAvatar(
+    id: number,
+    avatarUrl: string,
+) {
+
+    await this.usersRepository.update(
+        id,
+        {
+            avatar: avatarUrl,
+        },
+    );
+
+    const updatedUser =
+        await this.usersRepository.findOne({
+            where: { id },
+        });
+
+    if (!updatedUser) {
+        throw new HttpException(
+            {
+                success: false,
+                message:
+                    "Không tìm thấy user",
+            },
+            HttpStatus.NOT_FOUND,
+        );
+    }
+
+    const {
+        password,
+        ...result
+    } = updatedUser;
+
+    return result;
+}
 }

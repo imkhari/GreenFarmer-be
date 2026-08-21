@@ -3,9 +3,9 @@ import { User } from "src/users/entities/user.entity";
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { FarmImage } from "./farm-image.entity";
 export enum FarmTrustLevel {
-    LOW = 'low',
-    MEDIUM = 'medium',
-    HIGH = 'high',
+    LOW = 'Low',
+    MEDIUM = 'Medium',
+    HIGH = 'High',
 }
 export enum FarmStatus {
     PENDING = 'pending',

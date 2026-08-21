@@ -128,10 +128,7 @@ export class ProductsService {
       id: product.id,
       name: product.name,
       price: product.price,
-
-      image: firstImage?.image_url
-        ? `http://localhost:3000/uploads/${firstImage.image_url.replace(/^\/+/, '')}`
-        : null,
+      image: firstImage?.image_url ?? null,
 
       farmName: product.farm?.farm_name,
       farmAddress: product.farm?.address,
@@ -183,16 +180,15 @@ export class ProductsService {
       id: product.id,
       name: product.name,
       price: product.price,
-      image: firstBatchImage?.image_url
-        ? `http://localhost:3000/uploads/${firstBatchImage.image_url.replace(/^\/+/, '')}`
-        : null, farm: product.farm
-          ? {
-            id: product.farm.id,
-            farmName: product.farm.farm_name,
-            address: product.farm.address,
-            trustLevel: product.farm.trust_level,
-          }
-          : null,
+      image: firstBatchImage?.image_url ?? null,
+      farm: product.farm
+        ? {
+          id: product.farm.id,
+          farmName: product.farm.farm_name,
+          address: product.farm.address,
+          trustLevel: product.farm.trust_level,
+        }
+        : null,
       isFullyVerified: currentBatch?.trust_level === 'High',
       currentBatch: currentBatch
         ? {
@@ -219,26 +215,26 @@ export class ProductsService {
       },
     };
   }
-  async createReview(buyerId:number, productId: number, dto: CreateReviewDto){
-    const product= await this.productRepo.findOneBy({id: productId});
-    if (!product){
+  async createReview(buyerId: number, productId: number, dto: CreateReviewDto) {
+    const product = await this.productRepo.findOneBy({ id: productId });
+    if (!product) {
       throw new NotFoundException('Không tìm thấy sản phẩm với id ${producId}');
     }
     const existing = await this.reviewRepo.findOne({
-       where: { product: { id: productId }, buyer: { id: buyerId } },
-  });
-  if (existing) {
-    throw new ConflictException('Bạn đã đánh giá sản phẩm này rồi');
-  }
+      where: { product: { id: productId }, buyer: { id: buyerId } },
+    });
+    if (existing) {
+      throw new ConflictException('Bạn đã đánh giá sản phẩm này rồi');
+    }
 
-  const review = this.reviewRepo.create({
-    product: { id: productId } as any,
-    buyer: { id: buyerId } as any,
-    rating: dto.rating,
-    comment: dto.comment,
-  });
+    const review = this.reviewRepo.create({
+      product: { id: productId } as any,
+      buyer: { id: buyerId } as any,
+      rating: dto.rating,
+      comment: dto.comment,
+    });
 
-  await this.reviewRepo.save(review);
-  return { message: 'Đánh giá của bạn đã được ghi nhận' };
+    await this.reviewRepo.save(review);
+    return { message: 'Đánh giá của bạn đã được ghi nhận' };
   }
 }

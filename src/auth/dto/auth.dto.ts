@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty({ message: 'Họ tên không được để trống' })
@@ -16,6 +16,11 @@ export class RegisterDto {
 
   @IsOptional()
   address?: string;
+  @IsOptional()
+  @IsIn(['buyer', 'seller'], {
+    message: 'Role chỉ được là Buyer hoặc Seller',
+  })
+  role?: 'buyer' | 'seller';
 }
 
 export class LoginDto {

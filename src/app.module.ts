@@ -14,6 +14,7 @@ import { join } from 'path';
 import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { PaymentModule } from './payment/payment.module';
       }),
     }),
     UsersModule, 
-    AuthModule, ProductsModule, CategoryModule, FarmModule, BatchModule, CartModule, OrderModule, PaymentModule,
+    AuthModule, ProductsModule, CategoryModule, FarmModule, BatchModule, CartModule, OrderModule, PaymentModule, UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

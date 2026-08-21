@@ -18,17 +18,22 @@ export class FarmService {
       .where('farm.status = :status', { status: 'approved' })
       .getMany();
 
-    return farms.map((farm) => ({
-      id: farm.id,
-      farmName: farm.farm_name,
-      address: farm.address,
-      description: farm.description,
-      trustLevel: farm.trust_level,
+    return farms.map((farm) => {
+      const firstImage = (farm.images ?? [])
+        .filter((img) => img.image_type === 'Farm')
+        .sort((a, b) => a.id - b.id)[0];
 
-      coverImage: farm.images?.[0]?.imageUrl
-        ? `http://localhost:3000/uploads/${farm.images[0].imageUrl.replace(/^\/+/, '')}`
-        : null,
-    }));
+      return {
+        id: farm.id,
+        farm_name: farm.farm_name,
+        address: farm.address,
+        description: farm.description,
+
+        image: firstImage?.image_url
+          ? `http://localhost:3000/uploads/${firstImage.image_url.replace(/^\/+/, '')}`
+          : null,
+      };
+    });
   }
 
   async findOne(id: number) {
@@ -53,7 +58,7 @@ export class FarmService {
       areaHa: farm.area_ha,
       farmingMethod: farm.farming_method,
       trustLevel: farm.trust_level,
-      images: (farm.images ?? []).map((img) => img.imageUrl),
+      images: (farm.images ?? []).map((img) => img.image_url),
       totalProducts: farm.products?.length ?? 0,
     };
   }

@@ -12,7 +12,7 @@ export class AuthService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
     const existingUser = await this.usersRepository.findOne({ where: { email: registerDto.email } });
@@ -21,10 +21,14 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+    const role =
+      registerDto.role === 'seller'
+        ? UserRole.SELLER
+        : UserRole.BUYER;
     const newUser = this.usersRepository.create({
       ...registerDto,
       password: hashedPassword,
-      role: UserRole.BUYER,
+      role,
     });
 
     const savedUser = await this.usersRepository.save(newUser);
@@ -50,7 +54,7 @@ export class AuthService {
 
     const payload = { sub: user.id, email: user.email, role: user.role };
     const token = this.jwtService.sign(payload);
-    
+
     const { password, address, ...userData } = user;
 
     return {

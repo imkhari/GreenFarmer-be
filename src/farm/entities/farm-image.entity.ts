@@ -6,20 +6,19 @@ export class FarmImage {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: 'image_url' })
-  imageUrl!: string;
+  @Column()
+  image_url!: string;
 
     @Column({
-    name: 'image_type',
     type: 'enum',
     enum: ['Farm','Certifi'], 
   })
-  imageType!: string;
+  image_type!: string;
 
   @ManyToOne(() => Farm, (farm) => farm.images, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'farm_id' })
   farm!: Farm;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreateDateColumn()
+  created_at!: Date;
 }

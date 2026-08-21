@@ -15,7 +15,6 @@ export class CartService {
     private readonly batchRepo: Repository<Batch>,
   ) { }
 
-  // Xem giỏ hàng của buyer đang đăng nhập
   async getMyCart(buyerId: number) {
     const items = await this.cartRepo
       .createQueryBuilder('cart')

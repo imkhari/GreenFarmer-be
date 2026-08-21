@@ -28,6 +28,8 @@ export class Batch {
 
   @Column({ name: 'harvest_date', type: 'date', nullable: true })
   harvest_date!: Date;
+  @Column({ type: 'int', default: 0 })
+  quantity!: number;
 
   @Column({ type: 'enum', enum: TrustLevel, name: 'trust_level', default: TrustLevel.LOW })
   trust_level!: TrustLevel;
@@ -43,6 +45,4 @@ export class Batch {
 
   @OneToMany(() => CultivationLog, (log) => log.batch)
   cultivationLogs!: CultivationLog[];
-  quantity: any;
-
 }

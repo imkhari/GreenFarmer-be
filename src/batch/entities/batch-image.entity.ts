@@ -6,6 +6,8 @@ export class BatchImage {
     @PrimaryGeneratedColumn()
     id!: number;
     @Column()
+    batch_id!: number;
+    @Column()
     image_url!: string;
 
     @ManyToOne(() => Batch, (batch) => batch.images, { onDelete: 'CASCADE' })
