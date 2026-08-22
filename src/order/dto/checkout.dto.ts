@@ -18,6 +18,6 @@ export class CheckoutDto {
   shippingAddress!: string;
 
   @IsOptional()
-  @IsIn(['COD', 'ZaloPay', 'Momo'])
+  @IsIn(['COD', 'VNPay','ZaloPay', 'Momo'])
   paymentMethod?: string = 'COD';
 }

@@ -6,7 +6,7 @@ import { Batch } from '../batch/entities/batch.entity';
 import { GetProductsDto } from './dto/get-products.dto';
 import { Review } from './entities/review.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
-
+import { BatchImage } from '../batch/entities/batch-image.entity';
 @Injectable()
 export class ProductsService {
   constructor(
@@ -42,25 +42,28 @@ export class ProductsService {
             .select('b.product_id', 'productId')
             .addSelect('MAX(b.id)', 'latestBatchId')
             .from('batches', 'b')
-            .where('b.approval_status = :status', { status: 'Approved' })
+            .where('b.approval_status = :status', {
+              status: 'Approved',
+            })
             .groupBy('b.product_id'),
         'latest',
         'latest.productId = product.id',
       )
       .innerJoinAndMapOne(
         'product.latestBatch',
-        'batches',
+        Batch,
         'batch',
         'batch.id = latest.latestBatchId',
       )
       .leftJoinAndMapMany(
         'product.latestBatchImages',
-        'batch_images',
+        BatchImage,
         'batchImage',
         'batchImage.batch_id = batch.id',
       )
-      .where('farm.status = :farmStatus', { farmStatus: 'approved' });
-
+      .where('farm.status = :farmStatus', {
+        farmStatus: 'approved',
+      });
     if (search) {
       qb.andWhere('product.name LIKE :search', { search: `%${search}%` });
     }
@@ -117,17 +120,17 @@ export class ProductsService {
 
   private toCardResponse(product: any) {
     const latestBatch = product.latestBatch;
-
     const images = product.latestBatchImages ?? [];
 
-    const firstImage = [...images].sort(
-      (a, b) => a.id - b.id,
-    )[0];
+    const firstImage = images
+      .slice()
+      .sort((a, b) => a.id - b.id)[0];
 
     return {
       id: product.id,
       name: product.name,
       price: product.price,
+
       image: firstImage?.image_url ?? null,
 
       farmName: product.farm?.farm_name,

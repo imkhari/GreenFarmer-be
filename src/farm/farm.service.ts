@@ -29,9 +29,7 @@ export class FarmService {
         address: farm.address,
         description: farm.description,
 
-        image: firstImage?.image_url
-          ? `http://localhost:3000/uploads/${firstImage.image_url.replace(/^\/+/, '')}`
-          : null,
+        image: firstImage?.image_url ?? null,
       };
     });
   }
