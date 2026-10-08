@@ -45,13 +45,13 @@ export class OrderService {
 
     return this.dataSource.transaction(async (manager) => {
       const order = manager.create(Order, {
-        buyer: { id: buyerId } as any,
+        buyer_id: buyerId,
         receiver_name: dto.receiverName,
         receiver_phone: dto.receiverPhone,
         shipping_address: dto.shippingAddress,
         total_price: totalPrice,
         status: OrderStatus.PENDING,
-        payment_method: dto.paymentMethod as any, 
+        payment_method: dto.paymentMethod as any,
         payment_status: PaymentStatus.UNPAID,
       });
       const savedOrder = await manager.save(order);
@@ -76,7 +76,8 @@ export class OrderService {
 
   async getMyOrders(buyerId: number) {
     return this.orderRepo.find({
-      where: { buyer: { id: buyerId } },
+      where: { buyer_id: buyerId },
+      relations: { details: true },
       order: { created_at: 'DESC' },
     });
   }
@@ -89,4 +90,31 @@ export class OrderService {
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
   }
+  async findAllAdmin() {
+  return this.orderRepo.find({ order: { created_at: 'DESC' } });
+}
+async getSellerOrders(sellerId: number, status?: OrderStatus) {
+  const qb = this.orderRepo
+    .createQueryBuilder('o')
+    .innerJoinAndSelect('o.details', 'd')
+    .innerJoinAndSelect('d.batch', 'b')
+    .innerJoinAndSelect('b.product', 'p')
+    .innerJoin('p.farm', 'f')
+    .innerJoin('f.seller', 's')
+    .where('s.id = :sellerId', { sellerId })
+    .orderBy('o.created_at', 'DESC');
+
+  if (status) qb.andWhere('o.status = :status', { status });
+
+  const orders = await qb.getMany();
+
+  // details chỉ chứa các dòng hàng thuộc seller này (do inner join + where)
+  return orders.map((o) => ({
+    ...o,
+    seller_total: o.details.reduce(
+      (sum, d) => sum + Number(d.price) * d.quantity,
+      0,
+    ),
+  }));
+}
 }

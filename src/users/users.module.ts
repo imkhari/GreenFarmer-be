@@ -4,10 +4,12 @@ import { UsersController } from './users.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UploadModule } from 'src/upload/upload.module';
+import { UsersController as AdminUsersController } from './admin/users.controller';
+
 
 @Module({
   imports: [TypeOrmModule.forFeature([User]), UploadModule],
-  controllers: [UsersController],
+  controllers: [UsersController,AdminUsersController],
   providers: [UsersService],
   exports: [UsersService],
 })

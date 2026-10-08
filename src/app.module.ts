@@ -15,7 +15,8 @@ import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
 import { UploadModule } from './upload/upload.module';
-
+import { ApprovalModule } from './approval/approval.module';
+import { CultivationLogsModule } from './cultivation-logs/cultivation-logs.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -40,8 +41,9 @@ import { UploadModule } from './upload/upload.module';
         synchronize: false, 
       }),
     }),
-    UsersModule, 
-    AuthModule, ProductsModule, CategoryModule, FarmModule, BatchModule, CartModule, OrderModule, PaymentModule, UploadModule,
+    UsersModule,AuthModule, ProductsModule, CategoryModule, FarmModule, 
+    BatchModule, CartModule, OrderModule, PaymentModule, UploadModule,
+    ApprovalModule, CultivationLogsModule, ProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

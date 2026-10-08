@@ -9,8 +9,8 @@ import { UpdateCartItemDto } from './dto/update-cart.dto';
 import { AddToCartDto } from './dto/add-to-cart';
 
 @Controller('cart')
-@UseGuards(JwtAuthGuard, RolesGuard) // áp dụng cho toàn bộ controller: bắt buộc đăng nhập
-@Roles('buyer') // chỉ buyer được thao tác giỏ hàng
+// @UseGuards(JwtAuthGuard, RolesGuard) // áp dụng cho toàn bộ controller: bắt buộc đăng nhập
+// @Roles('buyer') // chỉ buyer được thao tác giỏ hàng
 export class CartController {
   constructor(private readonly cartService: CartService) { }
 

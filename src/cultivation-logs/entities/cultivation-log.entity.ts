@@ -1,5 +1,5 @@
+import { Batch } from 'src/batch/entities/batch.entity';
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { Batch } from './batch.entity';
 
 @Entity('cultivation_logs')
 export class CultivationLog {
@@ -7,16 +7,19 @@ export class CultivationLog {
   id!: number;
 
   @Column()
+  batch_id!: number;
+
+  @Column()
   activity!: string;
 
   @Column({ type: 'text', nullable: true })
-  description!: string;
+  description!: string | null;
 
-  @Column({ nullable: true })
-  image!: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  image!: string | null;
 
   @Column({ type: 'date', nullable: true })
-  log_date!: Date;
+  log_date!: Date | null;
 
   @ManyToOne(() => Batch, (batch) => batch.cultivationLogs, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'batch_id' })

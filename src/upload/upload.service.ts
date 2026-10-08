@@ -26,6 +26,38 @@ export class UploadService {
             api_secret: process.env.CLOUDINARY_API_SECRET,
         });
     }
+    async uploadToCloudinary(
+        file: Express.Multer.File,
+        folder: string,
+    ) {
+        if (!file) {
+            throw new BadRequestException('Không tìm thấy file tải lên');
+        }
+
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+            throw new BadRequestException('Chỉ chấp nhận file hình ảnh!');
+        }
+
+        return new Promise<any>((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder,
+                },
+                (error, result) => {
+                    if (error) {
+                        reject(error);
+                        return;
+                    }
+
+                    resolve(result);
+                },
+            );
+
+            streamifier
+                .createReadStream(file.buffer)
+                .pipe(uploadStream);
+        });
+    }
 
     async uploadFile(
         file: Express.Multer.File,

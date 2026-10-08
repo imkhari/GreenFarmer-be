@@ -1,6 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
 import { Farm } from './farm.entity';
 
+export enum FarmImageType {
+  FARM = 'Farm',
+  CERTIFICATE = 'Certifi',
+}
 @Entity('farm_images')
 export class FarmImage {
   @PrimaryGeneratedColumn()
@@ -9,11 +13,11 @@ export class FarmImage {
   @Column()
   image_url!: string;
 
-    @Column({
+  @Column({
     type: 'enum',
-    enum: ['Farm','Certifi'], 
+    enum: FarmImageType,
   })
-  image_type!: string;
+  image_type!: FarmImageType;
 
   @ManyToOne(() => Farm, (farm) => farm.images, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'farm_id' })

@@ -7,7 +7,6 @@ import { UpdateFarmDto } from './dto/update-farm.dto';
 export class FarmController {
   constructor(private readonly farmService: FarmService) {}
 
-
   @Get()
   findAll() {
     return this.farmService.findAll();
