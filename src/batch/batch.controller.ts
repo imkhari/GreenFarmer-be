@@ -22,6 +22,14 @@ export class BatchController {
   findByCode(@Param('batchCode') batchCode: string) {
     return this.batchService.findByCode(batchCode);
   }
+
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  findAllAdmin() {
+    return this.batchService.findAllAdmin();
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SELLER)

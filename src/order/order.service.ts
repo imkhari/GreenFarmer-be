@@ -1,5 +1,5 @@
 // src/order/order.service.ts
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Order, OrderStatus, PaymentStatus } from './entities/order.entity';
@@ -90,31 +90,152 @@ export class OrderService {
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
   }
-  async findAllAdmin() {
-  return this.orderRepo.find({ order: { created_at: 'DESC' } });
-}
-async getSellerOrders(sellerId: number, status?: OrderStatus) {
-  const qb = this.orderRepo
-    .createQueryBuilder('o')
-    .innerJoinAndSelect('o.details', 'd')
-    .innerJoinAndSelect('d.batch', 'b')
-    .innerJoinAndSelect('b.product', 'p')
-    .innerJoin('p.farm', 'f')
-    .innerJoin('f.seller', 's')
-    .where('s.id = :sellerId', { sellerId })
-    .orderBy('o.created_at', 'DESC');
 
-  if (status) qb.andWhere('o.status = :status', { status });
+  async findAllAdmin(status?: string) {
+    if (status && !Object.values(OrderStatus).includes(status as OrderStatus)) {
+      throw new BadRequestException('Trạng thái không hợp lệ');
+    }
 
-  const orders = await qb.getMany();
+    const orders = await this.orderRepo.find({
+      where: status ? { status: status as OrderStatus } : {},
+      relations: {
+        details: {
+          batch: {
+            images: true,
+            product: { farm: true },
+          },
+        },
+      },
+      order: { created_at: 'DESC' },
+    });
 
-  // details chỉ chứa các dòng hàng thuộc seller này (do inner join + where)
-  return orders.map((o) => ({
-    ...o,
-    seller_total: o.details.reduce(
-      (sum, d) => sum + Number(d.price) * d.quantity,
-      0,
-    ),
-  }));
-}
+    return orders.map((o) => ({
+      ...o,
+      total_price: o.total_price == null ? 0 : Number(o.total_price),
+      details: (o.details ?? []).map((d) => ({
+        id: d.id,
+        order_id: o.id,
+        batch_id: d.batch.id,
+        quantity: d.quantity,
+        price: Number(d.price),
+        product_name: d.batch.product?.name,
+        farm_name: d.batch.product?.farm?.farm_name,
+        batch_code: d.batch.batch_code,
+        image: d.batch.images?.[0]?.image_url,
+      })),
+    }));
+  }
+  async getSellerOrders(sellerId: number, status?: OrderStatus) {
+    const qb = this.orderRepo
+      .createQueryBuilder('o')
+      .innerJoinAndSelect('o.details', 'd')
+      .innerJoinAndSelect('d.batch', 'b')
+      .innerJoinAndSelect('b.product', 'p')
+      .innerJoin('p.farm', 'f')
+      .innerJoin('f.seller', 's')
+      .where('s.id = :sellerId', { sellerId })
+      .orderBy('o.created_at', 'DESC');
+
+    if (status) qb.andWhere('o.status = :status', { status });
+
+    const orders = await qb.getMany();
+
+    // details chỉ chứa các dòng hàng thuộc seller này (do inner join + where)
+    return orders.map((o) => ({
+      ...o,
+      seller_total: o.details.reduce(
+        (sum, d) => sum + Number(d.price) * d.quantity,
+        0,
+      ),
+    }));
+  }
+  // Đơn có chứa hàng của seller; details chỉ gồm các dòng thuộc seller này
+  async findBySeller(sellerId: number, status?: string) {
+    const qb = this.orderRepo
+      .createQueryBuilder('o')
+      .innerJoinAndSelect('o.details', 'd')
+      .innerJoinAndSelect('d.batch', 'b')
+      .innerJoin('b.product', 'p')
+      .innerJoin('p.farm', 'f')
+      .where('f.seller_id = :sellerId', { sellerId })
+      .orderBy('o.created_at', 'DESC');
+
+    if (status) qb.andWhere('o.status = :status', { status });
+
+    const orders = await qb.getMany();
+
+    return orders.map((o) => ({
+      ...o,
+      details: o.details.map((d) => ({
+        id: d.id,
+        order_id: o.id,
+        batch_id: d.batch.id, // frontend đọc d.batch_id
+        quantity: d.quantity,
+        price: Number(d.price),
+      })),
+    }));
+  }
+
+  async updateStatus(
+    user: { sub: number | string; role: string },
+    orderId: number,
+    status: OrderStatus,
+  ) {
+    if (!Object.values(OrderStatus).includes(status)) {
+      throw new BadRequestException('Trạng thái không hợp lệ');
+    }
+
+    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+
+    if (user.role === 'admin') {
+      // Admin chỉ duyệt/từ chối đơn đang chờ
+      const allowed = [OrderStatus.CONFIRMED, OrderStatus.CANCELLED];
+      if (order.status !== OrderStatus.PENDING || !allowed.includes(status)) {
+        throw new BadRequestException(
+          `Không thể chuyển từ ${order.status} sang ${status}`,
+        );
+      }
+    }
+
+    if (user.role === 'seller') {
+      // Seller chỉ được đi tiếp: Confirmed → Preparing → Shipping
+      const next: Partial<Record<OrderStatus, OrderStatus>> = {
+        [OrderStatus.CONFIRMED]: OrderStatus.PREPARING,
+        [OrderStatus.PREPARING]: OrderStatus.SHIPPING,
+      };
+      if (next[order.status] !== status) {
+        throw new BadRequestException(
+          `Không thể chuyển từ ${order.status} sang ${status}`,
+        );
+      }
+
+      // Đơn phải có ít nhất 1 sản phẩm thuộc seller
+      const owns = await this.orderRepo
+        .createQueryBuilder('o')
+        .innerJoin('o.details', 'd')
+        .innerJoin('d.batch', 'b')
+        .innerJoin('b.product', 'p')
+        .innerJoin('p.farm', 'f')
+        .where('o.id = :orderId', { orderId })
+        .andWhere('f.seller_id = :sellerId', { sellerId: Number(user.sub) })
+        .getCount();
+      if (!owns) throw new ForbiddenException('Đơn hàng này không có sản phẩm của bạn');
+    }
+    if (status === OrderStatus.CANCELLED) {
+      return this.dataSource.transaction(async (manager) => {
+        const details = await manager.find(OrderDetail, {
+          where: { order: { id: orderId } },
+          relations: { batch: true },
+        });
+        for (const d of details) {
+          await manager.increment(Batch, { id: d.batch.id }, 'quantity', d.quantity);
+        }
+        order.status = OrderStatus.CANCELLED;
+        return manager.save(order);
+      });
+    }
+    order.status = status;
+    return this.orderRepo.save(order);
+  }
 }

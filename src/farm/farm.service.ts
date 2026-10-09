@@ -6,7 +6,7 @@ import { Farm, FarmStatus } from './entities/farm.entity';
 import { FindOptionsRelations, Repository } from 'typeorm';
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { QueryFarmDto } from './dto/query-farm.dto';
-
+import { FarmImageType } from './entities/farm-image.entity';
 @Injectable()
 export class FarmService {
   constructor(
@@ -96,16 +96,27 @@ export class FarmService {
       throw new NotFoundException(`Không tìm thấy nông trại với id ${id}`);
     }
 
+    const sorted = [...(farm.images ?? [])].sort((a, b) => a.id - b.id);
+
     return {
       id: farm.id,
       farmName: farm.farm_name,
       ownerName: farm.owner_name,
       address: farm.address,
       description: farm.description,
-      areaHa: farm.area_ha,
+      areaHa: farm.area_ha != null ? Number(farm.area_ha) : undefined,
       farmingMethod: farm.farming_method,
       trustLevel: farm.trust_level,
-      images: (farm.images ?? []).map((img) => img.image_url),
+      status: farm.status,
+      createdAt: farm.created_at,
+      images: sorted.map((img) => img.image_url),
+      //admin phân biệt loại ảnh
+      farmImages: sorted
+        .filter((img) => img.image_type === FarmImageType.FARM)
+        .map((img) => img.image_url),
+      certificates: sorted
+        .filter((img) => img.image_type === FarmImageType.CERTIFICATE)
+        .map((img) => img.image_url),
       totalProducts: farm.products?.length ?? 0,
     };
   }

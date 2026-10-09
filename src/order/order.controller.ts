@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards, Query, Put } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,16 +24,27 @@ export class OrderController {
   }
   @Get('seller')
   @Roles('seller')
-  getSellerOrders(@CurrentUser() user: any, @Query('status') status?: OrderStatus) {
-    return this.orderService.getSellerOrders(user.sub, status);
+  getSellerOrders(@CurrentUser() user: any, @Query('status') status?: string) {
+    return this.orderService.findBySeller(Number(user.sub), status);
+  }
+
+  @Put(':id/status')
+  @Roles('seller', 'admin')
+  updateStatus(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body('status') status: OrderStatus,
+  ) {
+    return this.orderService.updateStatus(user, id, status);
+  }
+  @Get('admin/all')
+  @Roles('admin')
+  getAllForAdmin(@Query('status') status?: string) {
+    return this.orderService.findAllAdmin(status);
   }
   @Get(':id')
   getOrderDetail(@CurrentUser() user: any, @Param('id', ParseIntPipe) id: number) {
     return this.orderService.getOrderDetail(user.sub, id);
   }
-  @Get('admin/all')
-  @Roles('admin')
-  getAllForAdmin() {
-    return this.orderService.findAllAdmin();
-  }
+
 }
