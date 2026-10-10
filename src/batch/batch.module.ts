@@ -8,9 +8,10 @@ import { Approval } from 'src/approval/entities/approval.entity';
 import { CultivationLog } from 'src/cultivation-logs/entities/cultivation-log.entity';
 import { Product } from 'src/products/entities/product.entity';
 import { BatchAdminController } from './admin/batch-admin.controller';
+import { UploadModule } from 'src/upload/upload.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Batch, BatchImage, CultivationLog, Approval, Product])], 
+  imports: [TypeOrmModule.forFeature([Batch, BatchImage, CultivationLog, Approval, Product]),UploadModule], 
   controllers: [BatchController, BatchAdminController],
   providers: [BatchService],
   exports: [TypeOrmModule], 

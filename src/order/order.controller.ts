@@ -22,6 +22,12 @@ export class OrderController {
   getMyOrders(@CurrentUser() user: any) {
     return this.orderService.getMyOrders(user.sub);
   }
+
+  @Put(':id/confirm')
+  confirmReceived(@CurrentUser() user: any, @Param('id', ParseIntPipe) id: number) {
+    return this.orderService.confirmReceived(Number(user.sub), id);
+  }
+
   @Get('seller')
   @Roles('seller')
   getSellerOrders(@CurrentUser() user: any, @Query('status') status?: string) {

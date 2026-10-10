@@ -5,13 +5,20 @@ import {
     Param,
     UploadedFile,
     UseInterceptors,
+    UseGuards,
 } from "@nestjs/common";
 
 import { FileInterceptor } from "@nestjs/platform-express";
 
 import { UploadService } from "./upload.service";
+import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { RolesGuard } from "src/auth/guards/roles.guard";
+import { Roles } from "src/auth/decorators/roles.decorator";
+
 
 @Controller("api/upload")
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("seller")
 export class UploadController {
 
     constructor(

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query,
   Req, UseGuards,
 } from '@nestjs/common';
@@ -15,7 +16,7 @@ import { UserRole } from 'src/common/enums';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SELLER)
 export class ProductSellerController {
-  constructor(private readonly productService: ProductsService) {}
+  constructor(private readonly productService: ProductsService) { }
 
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateProductDto) {
@@ -23,8 +24,14 @@ export class ProductSellerController {
   }
 
   @Get()
-  findByFarm(@Req() req: AuthenticatedRequest, @Query('farm_id', ParseIntPipe) farmId: number) {
-    return this.productService.findByFarm(farmId, Number(req.user.sub));
+  findMine(@Req() req: AuthenticatedRequest, @Query('farm_id') farmId?: string) {
+    const sellerId = Number(req.user.sub);
+    if (farmId === undefined || farmId === '') {
+      return this.productService.findAllBySeller(sellerId);
+    }
+    const id = Number(farmId);
+    if (!Number.isInteger(id)) throw new BadRequestException('farm_id phải là số');
+    return this.productService.findByFarm(id, sellerId);
   }
 
   @Get(':id')

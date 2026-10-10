@@ -7,7 +7,7 @@ import { GetProductsDto } from './dto/get-products.dto';
 import { Review } from './entities/review.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { BatchImage } from '../batch/entities/batch-image.entity';
-import { Farm } from 'src/farm/entities/farm.entity';
+import { Farm, FarmStatus } from 'src/farm/entities/farm.entity';
 import { Category } from 'src/category/entities/category.entity';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -29,7 +29,7 @@ export class ProductsService {
 
   async findAll(query: GetProductsDto) {
     const { search, categoryId, batchTrustLevel, province,
-      minPrice, maxPrice, sort, page, limit,farmTrustLevel, } = query;
+      minPrice, maxPrice, sort, page, limit, farmTrustLevel, } = query;
 
     const qb = this.productRepo
       .createQueryBuilder('product')
@@ -249,54 +249,59 @@ export class ProductsService {
     await this.reviewRepo.save(review);
     return { message: 'Đánh giá của bạn đã được ghi nhận' };
   }
-  async create(dto: CreateProductDto, sellerId?: number) {
-    // Kiểm tra Farm
-    const farm = await this.farmRepository.findOne({
-      where: {
-        id: dto.farmId,
-      },
+ async create(dto: CreateProductDto, sellerId?: number) {
+  let farmId = dto.farmId;
+
+  // Không gửi farmId: dùng nông trại đã duyệt đầu tiên của seller
+  if (farmId === undefined) {
+    if (sellerId === undefined) {
+      throw new BadRequestException('Thiếu farmId');
+    }
+    const [myFarm] = await this.farmRepository.find({
+      where: { seller: { id: sellerId }, status: FarmStatus.APPROVED },
+      order: { id: 'ASC' },
+      take: 1,
     });
-
-    if (!farm) {
-      throw new NotFoundException('Không tìm thấy nông trại');
+    if (!myFarm) {
+      throw new BadRequestException('Bạn chưa có nông trại nào được Admin duyệt');
     }
-
-    if (sellerId !== undefined) {
-      const farmWithSeller = await this.farmRepository.findOne({
-        where: { id: dto.farmId },
-        relations: { seller: true },
-      });
-      if (!farmWithSeller || farmWithSeller.seller?.id !== sellerId) {
-        throw new ForbiddenException('Bạn không có quyền thao tác Farm này');
-      }
-    }
-
-    // Chỉ cho tạo Product nếu Farm đã được duyệt
-    if (farm.status !== 'approved') {
-      throw new BadRequestException('Nông trại chưa được Admin duyệt');
-    }
-
-    // Kiểm tra Category
-    const category = await this.categoryRepository.findOne({
-      where: {
-        id: dto.categoryId,
-      },
-    });
-
-    if (!category) {
-      throw new NotFoundException('Danh mục không tồn tại hoặc đã bị khóa');
-    }
-
-    const product = this.productRepo.create({
-      farm: farm,
-      category: category,
-      name: dto.name,
-      description: dto.description,
-      price: dto.price,
-    });
-
-    return this.productRepo.save(product);
+    farmId = myFarm.id;
   }
+
+  const farm = await this.farmRepository.findOne({
+    where: { id: farmId },
+    relations: { seller: true },
+  });
+  if (!farm) {
+    throw new NotFoundException('Không tìm thấy nông trại');
+  }
+
+  if (sellerId !== undefined && farm.seller?.id !== sellerId) {
+    throw new ForbiddenException('Bạn không có quyền thao tác Farm này');
+  }
+
+  // Chỉ cho tạo Product nếu Farm đã được duyệt
+  if (farm.status !== FarmStatus.APPROVED) {
+    throw new BadRequestException('Nông trại chưa được Admin duyệt');
+  }
+
+  const category = await this.categoryRepository.findOne({
+    where: { id: dto.categoryId },
+  });
+  if (!category) {
+    throw new NotFoundException('Danh mục không tồn tại hoặc đã bị khóa');
+  }
+
+  const product = this.productRepo.create({
+    farm,
+    category,
+    name: dto.name,
+    description: dto.description,
+    price: dto.price,
+  });
+
+  return this.productRepo.save(product);
+}
 
 
   async findByFarm(farmId: number, sellerId?: number) {
@@ -313,7 +318,7 @@ export class ProductsService {
 
     return this.productRepo.find({
       where: {
-        farm: {id: farmId,},
+        farm: { id: farmId, },
       },
 
       relations: {
@@ -322,6 +327,14 @@ export class ProductsService {
     });
   }
 
+  async findAllBySeller(sellerId: number) {
+    const products = await this.productRepo.find({
+      where: { farm: { seller: { id: sellerId } } },
+      relations: { category: true, farm: true },
+      order: { id: 'DESC' },
+    });
+    return products.map((p) => ({ ...p, price: Number(p.price) }));
+  }
 
   async update(id: number, dto: UpdateProductDto, sellerId?: number) {
     const product = await this.productRepo.findOne({
@@ -407,77 +420,77 @@ export class ProductsService {
     };
   }
   async findAllForAdmin(query: GetProductsDto) {
-  const {
-    search,
-    categoryId,
-    province,
-    minPrice,
-    maxPrice,
-    sort,
-    page,
-    limit,
-  } = query;
-
-  const qb = this.productRepo
-    .createQueryBuilder('product')
-    .leftJoinAndSelect('product.farm', 'farm')
-    .leftJoinAndSelect('product.category', 'category');
-
-  if (search) {
-    qb.andWhere('product.name LIKE :search', {
-      search: `%${search}%`,
-    });
-  }
-
-  if (categoryId) {
-    qb.andWhere('category.id = :categoryId', {
+    const {
+      search,
       categoryId,
-    });
-  }
-
-  if (province) {
-    qb.andWhere('farm.address LIKE :province', {
-      province: `%${province}%`,
-    });
-  }
-
-  if (minPrice !== undefined) {
-    qb.andWhere('product.price >= :minPrice', {
+      province,
       minPrice,
-    });
-  }
-
-  if (maxPrice !== undefined) {
-    qb.andWhere('product.price <= :maxPrice', {
       maxPrice,
-    });
-  }
-
-  switch (sort) {
-    case 'price_asc':
-      qb.orderBy('product.price', 'ASC');
-      break;
-
-    case 'price_desc':
-      qb.orderBy('product.price', 'DESC');
-      break;
-
-    default:
-      qb.orderBy('product.id', 'DESC');
-  }
-
-  qb.skip((page - 1) * limit).take(limit);
-
-  const [items, total] = await qb.getManyAndCount();
-
-  return {
-    data: items,
-    meta: {
+      sort,
       page,
       limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
-}
+    } = query;
+
+    const qb = this.productRepo
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.farm', 'farm')
+      .leftJoinAndSelect('product.category', 'category');
+
+    if (search) {
+      qb.andWhere('product.name LIKE :search', {
+        search: `%${search}%`,
+      });
+    }
+
+    if (categoryId) {
+      qb.andWhere('category.id = :categoryId', {
+        categoryId,
+      });
+    }
+
+    if (province) {
+      qb.andWhere('farm.address LIKE :province', {
+        province: `%${province}%`,
+      });
+    }
+
+    if (minPrice !== undefined) {
+      qb.andWhere('product.price >= :minPrice', {
+        minPrice,
+      });
+    }
+
+    if (maxPrice !== undefined) {
+      qb.andWhere('product.price <= :maxPrice', {
+        maxPrice,
+      });
+    }
+
+    switch (sort) {
+      case 'price_asc':
+        qb.orderBy('product.price', 'ASC');
+        break;
+
+      case 'price_desc':
+        qb.orderBy('product.price', 'DESC');
+        break;
+
+      default:
+        qb.orderBy('product.id', 'DESC');
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return {
+      data: items,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
 }

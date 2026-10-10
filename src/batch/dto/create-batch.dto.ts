@@ -51,5 +51,5 @@ export class CreateBatchDto {
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => CreateCultivationLogDto)
-  cultivationLogs?: CreateCultivationLogDto[];
+  cultivationLogs?: { activity: string; description?: string; logDate: string }[];
 }

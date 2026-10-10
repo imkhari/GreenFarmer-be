@@ -1,8 +1,9 @@
 import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateProductDto {
+  @IsOptional()
   @IsInt()
-  farmId!: number;
+  farmId?: number;
 
   @IsInt()
   categoryId!: number;

@@ -1,12 +1,17 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Batch, TrustLevel } from './entities/batch.entity';
+import { Batch, TrustLevel, ApprovalStatus } from './entities/batch.entity';
 import { Product } from 'src/products/entities/product.entity';
+import { CultivationLog } from 'src/cultivation-logs/entities/cultivation-log.entity';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { UpdateBatchDto } from './dto/update-batch.dto';
-import { ApprovalStatus } from './entities/batch.entity';
 
 @Injectable()
 export class BatchService {
@@ -15,6 +20,8 @@ export class BatchService {
     private readonly batchRepo: Repository<Batch>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(CultivationLog)
+    private readonly logRepo: Repository<CultivationLog>,
   ) { }
 
   async findByCode(batchCode: string) {
@@ -55,15 +62,12 @@ export class BatchService {
       images: (batch.images ?? []).map((img) => img.image_url),
     };
   }
-   async findOne(id: number): Promise<Batch> {
+
+  async findOne(id: number): Promise<Batch> {
     const batch = await this.batchRepo.findOne({
-      where: {
-        id,
-      },
+      where: { id },
       relations: {
-        product: {
-          farm: true,
-        },
+        product: { farm: true },
         cultivationLogs: true,
         images: true,
         approvals: true,
@@ -71,31 +75,21 @@ export class BatchService {
     });
 
     if (!batch) {
-      throw new NotFoundException(
-        `Không tìm thấy lô hàng #${id}`,
-      );
+      throw new NotFoundException(`Không tìm thấy lô hàng #${id}`);
     }
 
     return batch;
   }
-   async update(
-    id: number,
-    updateBatchDto: UpdateBatchDto,
-  ): Promise<Batch> {
+
+  async update(id: number, updateBatchDto: UpdateBatchDto): Promise<Batch> {
     const batch = await this.findOne(id);
 
     if (updateBatchDto.plantingDate !== undefined) {
-      batch.planting_date = new Date(
-        updateBatchDto.plantingDate,
-      );
+      batch.planting_date = new Date(updateBatchDto.plantingDate);
     }
-
     if (updateBatchDto.harvestDate !== undefined) {
-      batch.harvest_date = new Date(
-        updateBatchDto.harvestDate,
-      );
+      batch.harvest_date = new Date(updateBatchDto.harvestDate);
     }
-
     if (updateBatchDto.quantity !== undefined) {
       batch.quantity = updateBatchDto.quantity;
     }
@@ -105,65 +99,40 @@ export class BatchService {
       batch.harvest_date &&
       batch.harvest_date < batch.planting_date
     ) {
-      throw new BadRequestException(
-        'Ngày thu hoạch phải sau hoặc bằng ngày gieo',
-      );
+      throw new BadRequestException('Ngày thu hoạch phải sau hoặc bằng ngày gieo');
     }
 
     await this.batchRepo.save(batch);
-
     return this.findOne(id);
   }
-  //seller
+
+  // ===== Seller =====
   async create(dto: CreateBatchDto): Promise<Batch> {
     const product = await this.productRepository.findOne({
-      where: {
-        id: dto.productId,
-      },
-      relations: {
-        farm: {
-          seller: true,
-        },
-      },
+      where: { id: dto.productId },
+      relations: { farm: { seller: true } },
     });
 
     if (!product) {
-      throw new NotFoundException(
-        `Không tìm thấy sản phẩm #${dto.productId}`,
-      );
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${dto.productId}`);
     }
-
     if (!product.farm) {
-      throw new BadRequestException(
-        'Sản phẩm chưa thuộc nông trại nào',
-      );
+      throw new BadRequestException('Sản phẩm chưa thuộc nông trại nào');
     }
-
     if (product.farm.seller?.id !== dto.sellerId) {
-      throw new ForbiddenException(
-        'Sản phẩm này không thuộc nông trại của bạn',
-      );
+      throw new ForbiddenException('Sản phẩm này không thuộc nông trại của bạn');
     }
-
     if (
       dto.plantingDate &&
       new Date(dto.harvestDate) < new Date(dto.plantingDate)
     ) {
-      throw new BadRequestException(
-        'Ngày thu hoạch phải sau hoặc bằng ngày gieo',
-      );
+      throw new BadRequestException('Ngày thu hoạch phải sau hoặc bằng ngày gieo');
     }
 
-    // Tạo batch
     const batch = new Batch();
-
     batch.batch_code = `BATCH-${Date.now()}`;
     batch.barcode = `QR-${Date.now()}`;
-
-    batch.planting_date = dto.plantingDate
-      ? new Date(dto.plantingDate)
-      : null;
-
+    batch.planting_date = dto.plantingDate ? new Date(dto.plantingDate) : null;
     batch.harvest_date = new Date(dto.harvestDate);
     batch.quantity = dto.quantity;
     batch.product = product;
@@ -172,82 +141,72 @@ export class BatchService {
 
     const savedBatch = await this.batchRepo.save(batch);
 
+    if (dto.cultivationLogs?.length) {
+      await this.logRepo.save(
+        dto.cultivationLogs.map((l) =>
+          this.logRepo.create({
+            batch_id: savedBatch.id,
+            activity: l.activity,
+            description: l.description ?? null,
+            image: null,
+            log_date: new Date(l.logDate),
+          }),
+        ),
+      );
+    }
+
     return this.findOne(savedBatch.id);
   }
+
   async updateBySeller(
-  id: number,
-  sellerId: number,
-  updateBatchDto: UpdateBatchDto,
-): Promise<Batch> {
-  const batch = await this.findOneBySeller(id, sellerId);
+    id: number,
+    sellerId: number,
+    updateBatchDto: UpdateBatchDto,
+  ): Promise<Batch> {
+    const batch = await this.findOneBySeller(id, sellerId);
 
-  if (updateBatchDto.plantingDate !== undefined) {
-    batch.planting_date = new Date(updateBatchDto.plantingDate);
+    if (updateBatchDto.plantingDate !== undefined) {
+      batch.planting_date = new Date(updateBatchDto.plantingDate);
+    }
+    if (updateBatchDto.harvestDate !== undefined) {
+      batch.harvest_date = new Date(updateBatchDto.harvestDate);
+    }
+    if (updateBatchDto.quantity !== undefined) {
+      batch.quantity = updateBatchDto.quantity;
+    }
+
+    if (
+      batch.planting_date &&
+      batch.harvest_date &&
+      batch.harvest_date < batch.planting_date
+    ) {
+      throw new BadRequestException('Ngày thu hoạch phải sau hoặc bằng ngày gieo');
+    }
+
+    await this.batchRepo.save(batch);
+    return this.findOneBySeller(id, sellerId);
   }
-
-  if (updateBatchDto.harvestDate !== undefined) {
-    batch.harvest_date = new Date(updateBatchDto.harvestDate);
-  }
-
-  if (updateBatchDto.quantity !== undefined) {
-    batch.quantity = updateBatchDto.quantity;
-  }
-
-  if (
-    batch.planting_date &&
-    batch.harvest_date &&
-    batch.harvest_date < batch.planting_date
-  ) {
-    throw new BadRequestException(
-      'Ngày thu hoạch phải sau hoặc bằng ngày gieo',
-    );
-  }
-
-  await this.batchRepo.save(batch);
-
-  return this.findOneBySeller(id, sellerId);
-}
 
   findAllBySeller(sellerId: number): Promise<Batch[]> {
     return this.batchRepo.find({
-      where: {
-        product: {
-          farm: {
-            seller: { id: sellerId, }
-          },
-        },
-      },
+      where: { product: { farm: { seller: { id: sellerId } } } },
       relations: {
-        product: {
-          farm: true,
-        },
+        product: { farm: true },
         images: true,
         cultivationLogs: true,
       },
-      order: {
-        created_at: 'DESC',
-      },
+      order: { created_at: 'DESC' },
     });
   }
-  async findOneBySeller(
-    id: number,
-    sellerId: number,
-  ): Promise<Batch> {
+
+  async findOneBySeller(id: number, sellerId: number): Promise<Batch> {
     const batch = await this.batchRepo.findOne({
       where: {
         id,
-        product: {
-          farm: {
-            seller: {
-              id: sellerId,
-            },
-          },
-        },
+        product: { farm: { seller: { id: sellerId } } },
       },
       relations: {
-        product: {
-          farm: true,
-        },
+        product: { farm: true },
         cultivationLogs: true,
         images: true,
         approvals: true,
@@ -263,6 +222,22 @@ export class BatchService {
     return batch;
   }
 
+  async addLog(
+    id: number,
+    sellerId: number,
+    dto: { log_date: string; activity: string; description?: string; image?: string },
+  ) {
+    const batch = await this.findOneBySeller(id, sellerId);
+    const log = this.logRepo.create({
+      batch_id: batch.id,
+      activity: dto.activity,
+      description: dto.description ?? null,
+      image: dto.image ?? null,
+      log_date: new Date(dto.log_date),
+    });
+    return this.logRepo.save(log);
+  }
+
   async findByBarcodeForTrace(code: string): Promise<Batch> {
     const batch = await this.batchRepo.findOne({
       where: {
@@ -270,74 +245,49 @@ export class BatchService {
         // approval_status: ApprovalStatus.APPROVED,
       },
       relations: {
-        product: {
-          farm: true,
-        },
+        product: { farm: true },
         cultivationLogs: true,
         images: true,
       },
     });
 
     if (!batch) {
-      throw new NotFoundException(
-        'Không tìm thấy lô hàng hoặc lô chưa được xác minh',
-      );
+      throw new NotFoundException('Không tìm thấy lô hàng hoặc lô chưa được xác minh');
     }
 
     return batch;
   }
- async removeBySeller(
-  id: number,
-  sellerId: number,
-) {
-  const batch = await this.findOneBySeller(id, sellerId);
 
-  await this.batchRepo.remove(batch);
+  async removeBySeller(id: number, sellerId: number) {
+    const batch = await this.findOneBySeller(id, sellerId);
+    await this.batchRepo.remove(batch);
+    return { message: `Đã xóa lô hàng #${id}` };
+  }
 
-  return {
-    message: `Đã xóa lô hàng #${id}`,
-  };
-}
-
-  //Admin
+  // ===== Admin =====
   async findAllAdmin(): Promise<Batch[]> {
     return this.batchRepo.find({
       relations: {
-        product: {
-          farm: true,
-        },
+        product: { farm: true },
         images: true,
         cultivationLogs: true,
         approvals: true,
       },
-      order: {
-        created_at: 'DESC',
-      },
+      order: { created_at: 'DESC' },
     });
   }
 
   async approve(id: number): Promise<Batch> {
     const batch = await this.batchRepo.findOneBy({ id });
-
-    if (!batch) {
-      throw new NotFoundException(`Không tìm thấy lô hàng #${id}`);
-    }
-
+    if (!batch) throw new NotFoundException(`Không tìm thấy lô hàng #${id}`);
     batch.approval_status = ApprovalStatus.APPROVED;
-
     return this.batchRepo.save(batch);
   }
 
   async reject(id: number): Promise<Batch> {
     const batch = await this.batchRepo.findOneBy({ id });
-
-    if (!batch) {
-      throw new NotFoundException(`Không tìm thấy lô hàng #${id}`);
-    }
-
+    if (!batch) throw new NotFoundException(`Không tìm thấy lô hàng #${id}`);
     batch.approval_status = ApprovalStatus.REJECTED;
-
     return this.batchRepo.save(batch);
   }
-
 }

@@ -2,7 +2,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Order, OrderStatus, PaymentStatus } from './entities/order.entity';
+import { Order, OrderStatus, PaymentMethod, PaymentStatus } from './entities/order.entity';
 import { OrderDetail } from './entities/order-detail.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { Batch } from '../batch/entities/batch.entity';
@@ -84,11 +84,40 @@ export class OrderService {
 
   async getOrderDetail(buyerId: number, orderId: number) {
     const order = await this.orderRepo.findOne({
-      where: { id: orderId, buyer: { id: buyerId } },
+      where: { id: orderId, buyer_id: buyerId },
       relations: { details: { batch: { product: true } } },
     });
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    return order;
+
+    return {
+      ...order,
+      total_price: Number(order.total_price),
+      details: (order.details ?? []).map((d) => ({
+        id: d.id,
+        order_id: order.id,
+        batch_id: d.batch.id,
+        quantity: d.quantity,
+        price: Number(d.price),
+        product_name: d.batch.product?.name,
+        batch_code: d.batch.batch_code,
+      })),
+    };
+  }
+
+  async confirmReceived(buyerId: number, orderId: number) {
+    const order = await this.orderRepo.findOne({ where: { id: orderId, buyer_id: buyerId } });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+
+    if (![OrderStatus.SHIPPING, OrderStatus.DELIVERED].includes(order.status)) {
+      throw new BadRequestException('Đơn hàng chưa ở trạng thái giao hàng');
+    }
+
+    order.status = OrderStatus.COMPLETED;
+    // Đơn COD coi như đã thu tiền khi khách xác nhận nhận hàng
+    if (order.payment_method === PaymentMethod.COD) {
+      order.payment_status = PaymentStatus.PAID;
+    }
+    return this.orderRepo.save(order);
   }
 
   async findAllAdmin(status?: string) {
@@ -164,16 +193,23 @@ export class OrderService {
 
     const orders = await qb.getMany();
 
-    return orders.map((o) => ({
-      ...o,
-      details: o.details.map((d) => ({
+    return orders.map((o) => {
+      // details đã chỉ gồm các dòng hàng của seller này (do where trên join)
+      const details = o.details.map((d) => ({
         id: d.id,
         order_id: o.id,
         batch_id: d.batch.id, // frontend đọc d.batch_id
         quantity: d.quantity,
         price: Number(d.price),
-      })),
-    }));
+      }));
+
+      return {
+        ...o,
+        total_price: o.total_price == null ? 0 : Number(o.total_price),
+        seller_total: details.reduce((sum, d) => sum + d.price * d.quantity, 0),
+        details,
+      };
+    });
   }
 
   async updateStatus(
