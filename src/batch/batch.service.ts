@@ -31,8 +31,7 @@ export class BatchService {
       .leftJoinAndSelect('product.farm', 'farm')
       .leftJoinAndSelect('batch.images', 'images')
       .leftJoinAndSelect('batch.cultivationLogs', 'logs')
-      .where('batch.batch_code = :batchCode', { batchCode })
-      .orderBy('logs.log_date', 'ASC')
+      .where('batch.batch_code = :code OR batch.barcode = :code', { code: batchCode }).orderBy('logs.log_date', 'ASC')
       .getOne();
 
     if (!batch) {

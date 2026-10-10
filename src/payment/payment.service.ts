@@ -94,14 +94,6 @@ export class PaymentService {
     order.app_trans_id = txnRef;
     order.payment_method = PaymentMethod.VNPAY;
     await this.orderRepo.save(order);
-
-    console.log('===== VNPAY DEBUG =====');
-    console.log('TMN CODE:', tmnCode);
-    console.log('VNP URL:', vnpUrl);
-    console.log('RETURN URL:', returnUrl);
-    console.log('PAYMENT URL:', paymentUrl);
-    console.log('=======================');
-
     return { paymentUrl, txnRef };
   }
   async handleVnpayReturn(query: Record<string, string>) {
