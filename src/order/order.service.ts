@@ -96,10 +96,12 @@ export class OrderService {
         id: d.id,
         order_id: order.id,
         batch_id: d.batch.id,
+        product_id: d.batch.product?.id,
         quantity: d.quantity,
         price: Number(d.price),
         product_name: d.batch.product?.name,
         batch_code: d.batch.batch_code,
+        barcode: d.batch.barcode,
       })),
     };
   }
